@@ -1,0 +1,78 @@
+{
+  "_role_name": "N/A - attach directly to the IAM user used by deploy-cf-stack.yml",
+  "_attached_to": "csv-pipeline-github-actions-user (or a dedicated deploy user, reusing the same repo secrets)",
+  "_note": "Broader than the plain CSV-upload policy because cloudformation deploy needs to create/update every resource type in cloudformation/pipeline.yaml, plus iam:*Role* for CAPABILITY_NAMED_IAM. Scoped by resource name/prefix wherever the CFN resource types allow it.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["cloudformation:*"],
+      "Resource": "arn:aws:cloudformation:*:*:stack/csv-pipeline-cf/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:PutBucketNotification",
+        "s3:GetBucketNotification",
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "s3:HeadBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::csv-pipeline-cf-artifacts",
+        "arn:aws:s3:::csv-pipeline-cf-artifacts/*",
+        "arn:aws:s3:::upload-csv-cf",
+        "arn:aws:s3:::upload-csv-cf/*",
+        "arn:aws:s3:::dest-csv-cf",
+        "arn:aws:s3:::dest-csv-cf/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:PassRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:TagRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::*:role/csv-pipeline-lambda-role-cf",
+        "arn:aws:iam::*:role/csv-pipeline-glue-role-cf"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateFunction",
+        "lambda:DeleteFunction",
+        "lambda:GetFunction",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:AddPermission",
+        "lambda:RemovePermission",
+        "lambda:TagResource"
+      ],
+      "Resource": "arn:aws:lambda:*:*:function:csv-pipeline-trigger-lambda-cf"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "glue:CreateDatabase", "glue:DeleteDatabase", "glue:GetDatabase",
+        "glue:CreateCrawler", "glue:DeleteCrawler", "glue:GetCrawler", "glue:UpdateCrawler",
+        "glue:CreateJob", "glue:DeleteJob", "glue:GetJob", "glue:UpdateJob",
+        "glue:CreateWorkflow", "glue:DeleteWorkflow", "glue:GetWorkflow", "glue:UpdateWorkflow",
+        "glue:CreateTrigger", "glue:DeleteTrigger", "glue:GetTrigger", "glue:UpdateTrigger",
+        "glue:TagResource"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

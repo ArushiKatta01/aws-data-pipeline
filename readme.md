@@ -53,7 +53,7 @@ screenshots/                        Screenshots for verification and documentati
 - Two calls only: `glue.start_workflow_run()` then `glue.start_trigger()` — the second call actually fires the workflow's starting trigger
 - Does not touch the file itself — crawling and reading happen later
 
-![lambda trigger graph](screenshots/pipeline-trigger-lambda-graph.png)
+![lambda trigger graph](screenshots/add-trigger.png)
 
 **`glue/csv-pipeline-etl-job.py`**
 - Finds the most recently uploaded CSV in the input bucket
@@ -206,6 +206,81 @@ The workflow only fires on pushes to `main` that touch `incoming-csvs/**.csv` (s
 ![github actions logs](screenshots/github-actions-logs.png)
 
 ![success after github](<screenshots/success -after-github.png>)
+
+## CloudFormation variant (fully IaC, parallel stack)
+
+Everything above was built by hand through the console. This repo also has a
+second, complete copy of the same pipeline defined entirely as CloudFormation,
+with every resource suffixed `-cf` so it can be deployed alongside the
+original without any naming collisions.
+
+```
+cloudformation/
+  pipeline.yaml                 One template: buckets, IAM roles, Lambda,
+                                 Glue database/crawler/job/workflow/triggers
+lambda-cf/
+  lambda_function.py            Same trigger logic, names come from env vars
+glue-cf/
+  csv_pipeline_etl_job_cf.py    Same ETL logic, names come from job arguments
+incoming-csvs-cf/               Watched folder for the CF variant's CI/CD
+.github/workflows/
+  deploy-cf-stack.yml           Deploys/updates the CFN stack on push
+  upload-csv-to-s3-cf.yml       CF-variant of upload-csv-to-s3.yml
+```
+
+### How the deploy CI/CD works
+
+```
+Push to main touching cloudformation/**, lambda-cf/**, or glue-cf/**
+    → deploy-cf-stack.yml triggers
+        → Ensures the csv-pipeline-cf-artifacts bucket exists
+            → Zips lambda_function.py, uploads it + the Glue script to that
+              bucket under commit-SHA-suffixed keys (so CFN always sees a
+              changed S3 key and actually redeploys the code, not just the
+              template)
+                → aws cloudformation deploy --stack-name csv-pipeline-cf
+                    → Creates/updates every resource in pipeline.yaml
+```
+
+A separate, unrelated workflow (`upload-csv-to-s3-cf.yml`) still handles the
+"push a CSV, it lands in S3" path for the CF variant — it watches
+`incoming-csvs-cf/**.csv` and uploads into `upload-csv-cf`, which the stack
+already owns and has wired to the Lambda via an S3 event notification.
+
+### One-time setup
+
+1. **IAM for the deploy workflow** — `cloudformation deploy` needs far more
+   than the plain upload policy: it creates IAM roles (`CAPABILITY_NAMED_IAM`),
+   Lambda, Glue, and S3 resources. Attach
+   `iam/github-actions-cfn-deploy-policy.json` to the same
+   `csv-pipeline-github-actions-user` used for the original CI/CD (or a
+   dedicated user) — no new secrets needed if you reuse that user, since it
+   just adds permissions to the existing `AWS_ACCESS_KEY_ID` /
+   `AWS_SECRET_ACCESS_KEY` repo secrets.
+2. **Push** — commit `cloudformation/pipeline.yaml`, `lambda-cf/`, `glue-cf/`
+   to `main`. `deploy-cf-stack.yml` creates the `csv-pipeline-cf` stack,
+   including both new S3 buckets — no manual bucket creation needed, CFN
+   owns their whole lifecycle.
+3. **Test the pipeline** — add a CSV to `incoming-csvs-cf/`, commit, push.
+   `upload-csv-to-s3-cf.yml` uploads it to `upload-csv-cf`, which fires the
+   same Lambda → Workflow → Crawler → conditional trigger → Job chain as the
+   original, writing to `dest-csv-cf` and `pipeline_db_cf.csv_output_data_cf`.
+
+### Notes on the template
+
+- The S3 → Lambda notification's circular-dependency trap (bucket needs the
+  Lambda's ARN, Lambda's invoke permission needs the bucket's ARN) is broken
+  by building the permission's `SourceArn` from the `InputBucketName`
+  *parameter* (a literal string) rather than `!GetAtt InputBucket.Arn`, then
+  `DependsOn: LambdaInvokePermission` on the bucket resource.
+- `AWS::Lambda::Function` and `AWS::Glue::Job` only redeploy code when the S3
+  key they point at changes — that's why the deploy workflow suffixes both
+  the Lambda zip and the Glue script with `${GITHUB_SHA}` on every push.
+- Bucket/database/table names are passed into the Lambda as environment
+  variables and into the Glue job as `--INPUT_BUCKET`/`--OUTPUT_BUCKET`/
+  `--GLUE_DATABASE`/`--OUTPUT_TABLE` job arguments (via `DefaultArguments`),
+  instead of being hardcoded like the original scripts — so the same code
+  works no matter what the stack's parameters are set to.
 
 ## Issues fixed along the way
 
