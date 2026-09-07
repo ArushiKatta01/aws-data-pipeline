@@ -238,9 +238,8 @@ Resources:
       Predicate:
         Logical: AND
         Conditions:
-          - LogicalOperator: EQUALS
-            CrawlerName: !Ref CrawlerName
-            CrawlerState: SUCCEEDED
+          - CrawlerName: !Ref CrawlerName
+            CrawlState: SUCCEEDED
       Actions:
         - JobName: !Ref GlueJobName
 
