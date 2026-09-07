@@ -1,0 +1,40 @@
+{
+  "_role_name": "csv-pipeline-glue-role",
+  "_attached_to": ["csv-pipeline-crawler", "csv-pipeline-etl-job"],
+  "_managed_policy_also_attached": "AWSGlueServiceRole",
+  "_note": "Read-only on the input bucket, read+write+delete on the output bucket (delete needed because the job overwrites its output each run), plus Catalog access scoped to one database only.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::upload-csv-1233219898",
+        "arn:aws:s3:::upload-csv-1233219898/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::dest-csv-1233219898",
+        "arn:aws:s3:::dest-csv-1233219898/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetDatabase",
+        "glue:GetTable",
+        "glue:CreateTable",
+        "glue:UpdateTable",
+        "glue:BatchCreatePartition"
+      ],
+      "Resource": [
+        "arn:aws:glue:*:*:catalog",
+        "arn:aws:glue:*:*:database/pipeline_db",
+        "arn:aws:glue:*:*:table/pipeline_db/*"
+      ]
+    }
+  ]
+}

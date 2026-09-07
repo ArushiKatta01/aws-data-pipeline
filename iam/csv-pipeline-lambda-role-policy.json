@@ -1,0 +1,17 @@
+{
+  "_role_name": "csv-pipeline-lambda-role",
+  "_attached_to": "csv-pipeline-trigger-lambda",
+  "_managed_policy_also_attached": "AWSLambdaBasicExecutionRole",
+  "_note": "Can only start one specific workflow and fire one specific trigger - nothing else.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["glue:StartWorkflowRun", "glue:StartTrigger"],
+      "Resource": [
+        "arn:aws:glue:*:*:workflow/csv-pipeline-workflow",
+        "arn:aws:glue:*:*:trigger/csv-pipeline-start-trigger"
+      ]
+    }
+  ]
+}
