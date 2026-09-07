@@ -1,0 +1,19 @@
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": "s3:PutObject",
+			"Resource": "arn:aws:s3:::upload-csv-1233219898/*"
+		},
+		{
+			"Effect": "Allow",
+			"Action": [
+				"s3:HeadBucket",
+				"s3:CreateBucket",
+				"s3:ListBucket"
+			],
+			"Resource": "arn:aws:s3:::upload-csv-1233219898"
+		}
+	]
+}

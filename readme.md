@@ -202,9 +202,14 @@ git push origin main
 - **Failed to update jobcreate: AccessDeniedException: Account 549610931650 is denied access.** - created a new account and created the workflow in the same. I was able to create and run Glue Jobs in the new account.
 
 ## *SYNC ISSUES*
-A problem I've been facing is when running the pipeline automatically: SOMETIMES the workflow graph would show that the crawler has failed. However the table and csv would be updated properly when checking the logs and verifying in the QUERY EDITOR IN ATHENA. 
-I have tried ALTERING the crawler to run for the new csv ONLY WHEN crawler is in READY STATE, which did not fix the issue.
-Upon doing some research and reaching out to others, looks like it is a sync issue in the backend. 
-When running the workflow manually, all the steps run successfully.
 
+A problem I've been facing is when running the pipeline automatically: SOMETIMES the workflow graph would show that the crawler has failed. However the table and csv would be updated properly when checking the logs and verifying in the QUERY EDITOR IN ATHENA. 
 ![sync issue](screenshots/sync-issue.png)
+At first it looked like a backend issue. Then I inspected the existing triggers and realized the 'Associated Workflow' field was empty. 
+Solution -> Re-creating the triggers in the workflow graph, and defining the jobs/crawlers to watch solved the issue. 
+Now, activating the trigger actually changes the 'Status' to ACTIVATED!
+![activate trigger](screenshots/activated-trigger.png)
+
+
+
+

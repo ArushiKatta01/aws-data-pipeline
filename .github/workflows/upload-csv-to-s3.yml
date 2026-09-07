@@ -27,6 +27,21 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-southeast-2
 
+      - name: Ensure S3 bucket exists
+        env:
+          BUCKET: upload-csv-1233219898
+          REGION: ap-southeast-2
+        run: |
+          if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "Bucket $BUCKET already exists, continuing."
+          else
+            echo "Bucket $BUCKET not found, creating it."
+            aws s3api create-bucket \
+              --bucket "$BUCKET" \
+              --region "$REGION" \
+              --create-bucket-configuration LocationConstraint="$REGION"
+          fi
+
       - name: Find changed CSV files
         id: changed
         run: |
