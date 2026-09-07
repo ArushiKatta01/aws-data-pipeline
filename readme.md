@@ -76,11 +76,11 @@ screenshots/                        Screenshots for verification and documentati
 
 1. Upload a CSV to the input bucket
 
-   ![upload csv](screenshots/uploadcsv.png)
+![upload csv](screenshots/uploadcsv.png)
 
    *Original CSV:*
 
-   ![original csv data](screenshots/original-csv.png)
+![original csv data](screenshots/original-csv.png)
 
 2. Lambda → Monitor tab → invocation appears, no errors
 
@@ -105,15 +105,15 @@ screenshots/                        Screenshots for verification and documentati
 
 6. Output bucket → cleaned CSV appears
 
-   ![output csv in dest bucket](screenshots/outputcsvdest.png)
+![output csv in dest bucket](screenshots/outputcsvdest.png)
 
 7. Glue Catalog → `csv_output_data` table exists with the right schema
 
-   ![table schema](screenshots/table-schema.png)
+![table schema](screenshots/table-schema.png)
 
 8. Athena → `SELECT * FROM csv_output_data;` → nulls are standardized, row count matches input
 
-   ![athena](screenshots/transformed-csv-athena.png)
+![athena](screenshots/transformed-csv-athena.png)
 
 ## GLUE WORKFLOW
 
@@ -136,10 +136,14 @@ A CSV can also enter this pipeline by being pushed to a GitHub repo, instead of 
 Push a CSV to GitHub (folder: incoming-csvs/)
     → GitHub Actions workflow triggers
         → Authenticates to AWS using an IAM user's access keys
-            → Uploads the CSV to upload-csv-1233219898
-                → Existing S3 event notification fires
-                    → csv-pipeline-trigger-lambda → Glue Workflow → same as every other upload
+            → Checks that upload-csv-1233219898 exists, creates it if not
+                → Diffs the commit to find which CSVs actually changed
+                    → Uploads each changed CSV to upload-csv-1233219898
+                        → Existing S3 event notification fires
+                            → csv-pipeline-trigger-lambda → Glue Workflow → same as every other upload
 ```
+
+The workflow only fires on pushes to `main` that touch `incoming-csvs/**.csv` (see `on.push.paths` in the yml) - unrelated commits won't trigger it. It also only uploads files that actually changed in that push (via `git diff HEAD^ HEAD`), not every CSV in the folder.
 
 ### One-time setup
 
@@ -150,17 +154,28 @@ Push a CSV to GitHub (folder: incoming-csvs/)
 **2. Attach this inline policy** (`iam/github-actions-user-policy.json`):
 ```json
 {
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::upload-csv-1233219898/*"
-    }
-  ]
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": "s3:PutObject",
+			"Resource": "arn:aws:s3:::upload-csv-1233219898/*"
+		},
+		{
+			"Effect": "Allow",
+			"Action": [
+				"s3:HeadBucket",
+				"s3:CreateBucket",
+				"s3:ListBucket"
+			],
+			"Resource": "arn:aws:s3:::upload-csv-1233219898"
+		}
+	]
 }
 ```
 - Can only upload into the input bucket — no read, no delete, no other bucket, no Glue/Lambda access at all
+
+- Note: the workflow also checks whether `upload-csv-1233219898` exists (`aws s3api head-bucket`) and creates it if not. The inline policy below only grants `s3:PutObject` on the bucket's objects, which is enough if the bucket already exists - if it doesn't, also grant this user `s3:HeadBucket` and `s3:CreateBucket` on the bucket itself, or pre-create the bucket so the workflow's check just passes through.
 
 **3. Generate access keys**
 - Same user → Security credentials tab → Create access key → use case: **Third-party service**
@@ -173,15 +188,9 @@ Push a CSV to GitHub (folder: incoming-csvs/)
 **5. Create the watched folder**
 - Add an `incoming-csvs/` folder to the repo — this is the only path the workflow reacts to
 
-**6. Add the workflow file**
+**6. Add the workflow file + commit and push**
 - Path must be exactly `.github/workflows/upload-csv-to-s3.yml` — GitHub only looks in `.github/workflows/`
 
-**7. Commit and push**
-```bash
-git add .github/workflows/upload-csv-to-s3.yml incoming-csvs/
-git commit -m "Add GitHub Actions workflow to upload CSVs to S3"
-git push origin main
-```
 
 ### Testing it
 
@@ -190,7 +199,9 @@ git push origin main
 3. S3 → input bucket → confirm the file landed there
 4. The rest of the pipeline runs exactly as it does for a console upload
 
-![github actions](screenshots/github-actions.png)
+![deploy pipeline](screenshots/deploy-pipeline.png)
+
+![github actions logs](screenshots/github-actions-logs.png)
 
 ![success after github](<screenshots/success -after-github.png>)
 
@@ -200,14 +211,12 @@ git push origin main
 - **Workflow said "doesn't have any starting trigger"** — the trigger existed but wasn't activated, or wasn't actually attached to this workflow. Fixed by building both triggers directly inside the workflow's own Graph tab (not the standalone Triggers page), and clicking **Activate** on each one immediately after creating it.
 - **Crawler "already running"** — traced back to Lambda silently auto-retrying a failed invocation up to 2 extra times, each retry starting a new colliding workflow run. Turned off Lambda's automatic retries (Configuration → Asynchronous invocation → Maximum retry attempts → 0).
 - **Failed to update jobcreate: AccessDeniedException: Account 549610931650 is denied access.** - created a new account and created the workflow in the same. I was able to create and run Glue Jobs in the new account.
-
-## *SYNC ISSUES*
-
-A problem I've been facing is when running the pipeline automatically: SOMETIMES the workflow graph would show that the crawler has failed. However the table and csv would be updated properly when checking the logs and verifying in the QUERY EDITOR IN ATHENA. 
+- **A problem I've been facing** is when running the pipeline automatically: SOMETIMES the workflow graph would show that the crawler has failed. However the table and csv would be updated properly when checking the logs and verifying in the QUERY EDITOR IN ATHENA. 
 ![sync issue](screenshots/sync-issue.png)
 At first it looked like a backend issue. Then I inspected the existing triggers and realized the 'Associated Workflow' field was empty. 
 Solution -> Re-creating the triggers in the workflow graph, and defining the jobs/crawlers to watch solved the issue. 
 Now, activating the trigger actually changes the 'Status' to ACTIVATED!
+
 ![activate trigger](screenshots/activated-trigger.png)
 
 
