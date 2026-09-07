@@ -14,8 +14,10 @@ Event-driven pipeline. Upload a CSV → get a cleaned CSV + a queryable table, a
 - **Logging**: CloudWatch, automatic for every Lambda and Glue run — plus the Workflow's own run history gives a single visual graph of every step
 
 ## Architecture
+<!-- 
+![alt text](screenshots/archfinal.png) -->
 
-![alt text](screenshots/archfinal.png)
+![ARCH](screenshots/finalarchitectureaws.png)
 
 ## What each step does
 
